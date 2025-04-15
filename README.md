@@ -59,7 +59,7 @@ Jumlah data book_tags: 999912
 Jumlah data to_read: 912705
 ```
 
-**2. Struktur Data Buku**
+**2. Struktur & Kondisi Data Buku**
 ```
 Data columns (total 23 columns):
  #   Column                     Non-Null Count  Dtype  
