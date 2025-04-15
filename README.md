@@ -149,7 +149,7 @@ Pemilihan fitur ini penting karena fitur-fitur ini akan digunakan sebagai dasar 
 ### 3. Penggabungan Data
 
 Menggabungkan data buku dengan tag untuk membuat representasi konten yang lebih kaya:
-```python
+```bash
 # Menggabungkan data buku dengan tag
 book_tag_counts = book_tags.groupby('goodreads_book_id').agg({
     'tag_id': list, 
@@ -172,7 +172,7 @@ Penggabungan ini penting dilakukan untuk memberikan konteks yang lebih kaya tent
 ### 4. Encoding User dan Book ID
 
 Untuk model Collaborative Filtering, kita perlu mengubah user_id dan book_id menjadi indeks numerik yang berurutan:
-```python
+```bash
 user_ids = ratings_subset['user_id'].unique().tolist()
 user_to_user_encoded = {x: i for i, x in enumerate(user_ids)}
 user_encoded_to_user = {i: x for i, x in enumerate(user_ids)}
@@ -187,7 +187,7 @@ Encoding ini diperlukan karena model deep learning memerlukan indeks numerik ber
 ### 5. Normalisasi Rating
 
 Untuk meningkatkan performa model, rating dinormalisasi ke rentang 0-1:
-```python
+```bash
 ratings_subset['rating'] = ratings_subset['rating'].apply(lambda x: (x - min_rating) / (max_rating - min_rating))
 ```
 
@@ -200,18 +200,18 @@ Normalisasi ini penting agar membantu konvergensi model yang lebih cepat selama 
 Model Content-Based Filtering diimplementasikan dengan langkah-langkah berikut:
 
 1. **TF-IDF Vectorization**: Mengubah teks konten (kombinasi penulis dan tag) menjadi vektor numerik menggunakan TF-IDF.
-   ```python
+   ```bash
    tfidf = TfidfVectorizer(stop_words='english')
    tfidf_matrix = tfidf.fit_transform(books_with_tags['content'])
    ```
 
 2. **Cosine Similarity**: Menghitung kesamaan antara buku menggunakan metrik cosine similarity.
-   ```python
+   ```bash
    cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
    ```
 
 3. **Recommendation Function**: Membuat fungsi untuk memberikan rekomendasi berdasarkan kesamaan.
-   ```python
+   ```bash
    def get_content_based_recommendations(title, cosine_sim=cosine_sim, df=books_with_tags, indices=indices, verbose=True):
        # Mengambil indeks buku yang sesuai dengan judul
        idx = indices[title]
@@ -276,7 +276,7 @@ No   Judul                                              Penulis                 
 Model Collaborative Filtering diimplementasikan menggunakan deep learning dengan TensorFlow:
 
 1. **Model Architecture**: Menggunakan embedding layer untuk user dan book.
-   ```python
+   ```bash
    class RecommenderNet(keras.Model):
        def __init__(self, num_users, num_books, embedding_size, **kwargs):
            super(RecommenderNet, self).__init__(**kwargs)
@@ -314,7 +314,7 @@ Model Collaborative Filtering diimplementasikan menggunakan deep learning dengan
 2. **Training Model**: Model dilatih menggunakan data rating dari pengguna dengan learning rate 0.001 dan 100 epoch.
 
 3. **Recommendation Function**: Membuat fungsi untuk memberikan rekomendasi berdasarkan prediksi model.
-   ```python
+   ```bash
    def get_collaborative_recommendations(user_id, top_n=10):
        # Kode untuk mendapatkan rekomendasi
        ...
