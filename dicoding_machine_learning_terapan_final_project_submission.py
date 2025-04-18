@@ -30,11 +30,13 @@ Referensi:
 
 1. Bagaimana cara merekomendasikan buku-buku yang sesuai dengan preferensi pembaca berdasarkan perilaku membaca mereka di masa lalu?
 2. Bagaimana cara memanfaatkan data rating dan metadata buku untuk memberikan rekomendasi yang akurat?
+3. Bagaimana cara mengevaluasi kinerja sistem rekomendasi yang dibangun?
 
 ### Goals
 
 1. Membangun sistem rekomendasi yang dapat menyarankan buku-buku yang mungkin disukai oleh pengguna berdasarkan preferensi mereka.
 2. Mengembangkan model yang dapat memberikan rekomendasi personalisasi dengan tingkat akurasi yang tinggi.
+3. Mengevaluasi dan membandingkan kinerja dari pendekatan-pendekatan yang diimplementasikan.
 
 ### Solution Approach
 
@@ -307,7 +309,6 @@ print(books_with_tags.head())
 
 """### 4. Menyiapkan Data untuk Collaborative Filtering"""
 
-# Memilih subset data untuk efisiensi komputasi (opsional)
 # Kita bisa memilih hanya pengguna yang memberikan rating untuk minimal 5 buku
 user_counts = ratings_clean['user_id'].value_counts()
 valid_users = user_counts[user_counts >= 5].index
@@ -321,6 +322,50 @@ ratings_subset = ratings_subset[ratings_subset['book_id'].isin(valid_books)]
 print(f"Jumlah data rating untuk model: {len(ratings_subset)}")
 print(f"Jumlah pengguna unik: {len(ratings_subset['user_id'].unique())}")
 print(f"Jumlah buku unik: {len(ratings_subset['book_id'].unique())}")
+
+"""### 5. Encoding User dan Book ID Untuk Collaborative Filtering"""
+
+# Preprocessing data
+# Encode userId dan bookId
+user_ids = ratings_subset['user_id'].unique().tolist()
+user_to_user_encoded = {x: i for i, x in enumerate(user_ids)}
+user_encoded_to_user = {i: x for i, x in enumerate(user_ids)}
+
+book_ids = ratings_subset['book_id'].unique().tolist()
+book_to_book_encoded = {x: i for i, x in enumerate(book_ids)}
+book_encoded_to_book = {i: x for i, x in enumerate(book_ids)}
+
+"""### 6. Normalisasi Rating"""
+
+# Mapping encode
+ratings_subset['user'] = ratings_subset['user_id'].map(user_to_user_encoded)
+ratings_subset['book'] = ratings_subset['book_id'].map(book_to_book_encoded)
+
+num_users = len(user_to_user_encoded)
+num_books = len(book_to_book_encoded)
+ratings_subset['rating'] = ratings_subset['rating'].values.astype(np.float32)
+
+# Min dan max rating
+min_rating = min(ratings_subset['rating'])
+max_rating = max(ratings_subset['rating'])
+
+print(f"Jumlah pengguna: {num_users}, Jumlah buku: {num_books}")
+print(f"Rating minimum: {min_rating}, Rating maksimum: {max_rating}")
+
+"""### 7. Membagi data Latih dan Uji untuk Collaborative Filtering"""
+
+# Membagi data untuk training dan validasi
+x = ratings_subset[['user', 'book']].values
+y = ratings_subset['rating'].apply(lambda x: (x - min_rating) / (max_rating - min_rating)).values
+
+# Split data
+train_indices = int(0.8 * len(ratings_subset))
+x_train, x_val, y_train, y_val = (
+    x[:train_indices],
+    x[train_indices:],
+    y[:train_indices],
+    y[train_indices:]
+)
 
 """## Modeling and Result
 
@@ -393,44 +438,6 @@ except:
 """### 2. Collaborative Filtering
 Untuk model collaborative filtering, kita akan menggunakan algoritma berbasis deep learning dengan TensorFlow.
 """
-
-# Preprocessing data
-# Encode userId dan bookId
-user_ids = ratings_subset['user_id'].unique().tolist()
-user_to_user_encoded = {x: i for i, x in enumerate(user_ids)}
-user_encoded_to_user = {i: x for i, x in enumerate(user_ids)}
-
-book_ids = ratings_subset['book_id'].unique().tolist()
-book_to_book_encoded = {x: i for i, x in enumerate(book_ids)}
-book_encoded_to_book = {i: x for i, x in enumerate(book_ids)}
-
-# Mapping encode
-ratings_subset['user'] = ratings_subset['user_id'].map(user_to_user_encoded)
-ratings_subset['book'] = ratings_subset['book_id'].map(book_to_book_encoded)
-
-num_users = len(user_to_user_encoded)
-num_books = len(book_to_book_encoded)
-ratings_subset['rating'] = ratings_subset['rating'].values.astype(np.float32)
-
-# Min dan max rating
-min_rating = min(ratings_subset['rating'])
-max_rating = max(ratings_subset['rating'])
-
-print(f"Jumlah pengguna: {num_users}, Jumlah buku: {num_books}")
-print(f"Rating minimum: {min_rating}, Rating maksimum: {max_rating}")
-
-# Membagi data untuk training dan validasi
-x = ratings_subset[['user', 'book']].values
-y = ratings_subset['rating'].apply(lambda x: (x - min_rating) / (max_rating - min_rating)).values
-
-# Split data
-train_indices = int(0.8 * len(ratings_subset))
-x_train, x_val, y_train, y_val = (
-    x[:train_indices],
-    x[train_indices:],
-    y[:train_indices],
-    y[train_indices:]
-)
 
 # Model Collaborative Filtering
 class RecommenderNet(keras.Model):
