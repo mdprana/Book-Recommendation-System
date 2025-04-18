@@ -6,7 +6,7 @@ Sistem rekomendasi buku merupakan sistem yang memberikan rekomendasi buku kepada
 
 Di era digital saat ini, terdapat jutaan buku yang tersedia secara online. Tanpa adanya sistem rekomendasi yang efektif, pembaca akan kesulitan menemukan buku yang sesuai dengan minat mereka. Hal ini dapat menyebabkan pengalaman pengguna yang buruk dan penurunan tingkat keterlibatan pengguna pada platform tersebut.
 
-Penelitian menunjukkan bahwa sistem rekomendasi yang efektif dapat meningkatkan engagement pengguna hingga 40% dan meningkatkan konversi penjualan hingga 30% (Adomavicius & Tuzhilin, 2019). Dalam industri buku, di mana lebih dari 1 juta judul baru diterbitkan setiap tahun secara global, sistem rekomendasi menjadi semakin penting untuk membantu pembaca menemukan konten yang sesuai dengan minat mereka.
+Penelitian menunjukkan bahwa sistem rekomendasi yang efektif dapat meningkatkan engagement pengguna hingga 40% dan meningkatkan konversi penjualan hingga 30% (Adomavicius & Tuzhilin, 2005). Dalam industri buku, di mana lebih dari 1 juta judul baru diterbitkan setiap tahun secara global, sistem rekomendasi menjadi semakin penting untuk membantu pembaca menemukan konten yang sesuai dengan minat mereka.
 
 Referensi:
 - [Adomavicius, G., & Tuzhilin, A. (2005). Personalization technologies: a process-oriented perspective. Communications of the ACM, 48(10), 83-90.](https://dl.acm.org/doi/10.1145/1089107.1089109)
