@@ -1,4 +1,4 @@
-# Laporan Proyek Machine Learning - Sistem Rekomendasi Buku
+# Laporan Proyek Machine Learning - Made Pranajaya Dibyacita
 
 ## Project Overview
 
