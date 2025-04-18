@@ -133,7 +133,7 @@ Langkah pertama adalah mengatasi missing value pada dataset. Terdapat beberapa m
 - Menghapus buku dengan judul atau penulis yang kosong karena kedua informasi ini sangat penting untuk sistem rekomendasi.
 - Membersihkan data rating untuk memastikan hanya menggunakan rating untuk buku yang valid.
 
-Tahapan ini penting dilakukan untuk memastikan kualitas data yang akan digunakan dalam model.
+Tahapan ini penting untuk memastikan kualitas data yang akan digunakan dalam model.
 
 ### 2. Pemilihan Fitur
 
@@ -148,95 +148,62 @@ Pemilihan fitur ini penting karena fitur-fitur ini akan digunakan sebagai dasar 
 
 ### 3. Penggabungan Data
 
-Menggabungkan data buku dengan tag untuk membuat representasi konten yang lebih kaya:
-```bash
-# Menggabungkan data buku dengan tag
-book_tag_counts = book_tags.groupby('goodreads_book_id').agg({
-    'tag_id': list, 
-    'count': sum
-}).reset_index()
+Menggabungkan data buku dengan tag untuk membuat representasi konten yang lebih kaya. Tahapan ini meliputi:
+- Menggabungkan data buku dengan data tag melalui goodreads_book_id
+- Mengonversi tag_id menjadi nama tag menggunakan dictionary
+- Menggabungkan semua tag menjadi satu string untuk setiap buku
+- Membuat kolom "content" yang menggabungkan penulis dan tag string
 
-tags_dict = dict(zip(tags['tag_id'], tags['tag_name']))
-
-# Fungsi untuk mendapatkan tag name dari tag id
-def get_tag_names(tag_ids):
-    return [tags_dict.get(tag_id, "") for tag_id in tag_ids if tag_id in tags_dict]
-
-# Menambahkan daftar tag ke data buku
-book_tag_counts['tag_names'] = book_tag_counts['tag_id'].apply(get_tag_names)
-book_tag_counts['tag_string'] = book_tag_counts['tag_names'].apply(lambda x: ' '.join(x))
-```
-
-Penggabungan ini penting dilakukan untuk memberikan konteks yang lebih kaya tentang setiap buku, yang akan meningkatkan kualitas rekomendasi berbasis konten.
+Penggabungan ini penting untuk memberikan konteks yang lebih kaya tentang setiap buku, yang akan meningkatkan kualitas rekomendasi berbasis konten.
 
 ### 4. Encoding User dan Book ID
 
-Untuk model Collaborative Filtering, kita perlu mengubah user_id dan book_id menjadi indeks numerik yang berurutan:
-```bash
-user_ids = ratings_subset['user_id'].unique().tolist()
-user_to_user_encoded = {x: i for i, x in enumerate(user_ids)}
-user_encoded_to_user = {i: x for i, x in enumerate(user_ids)}
-
-book_ids = ratings_subset['book_id'].unique().tolist()
-book_to_book_encoded = {x: i for i, x in enumerate(book_ids)}
-book_encoded_to_book = {i: x for i, x in enumerate(book_ids)}
-```
+Proses encoding perlu dilakukan agar data dapat diproses oleh model deep learning:
+- Membuat dictionary untuk mengonversi user_id dan book_id menjadi indeks berurutan
+- Membuat dictionary untuk konversi balik dari indeks ke ID asli
+- Memetakan user_id dan book_id ke indeks baru di dataframe
 
 Encoding ini diperlukan karena model deep learning memerlukan indeks numerik berurutan sebagai input.
 
 ### 5. Normalisasi Rating
 
-Untuk meningkatkan performa model, rating dinormalisasi ke rentang 0-1:
-```bash
-ratings_subset['rating'] = ratings_subset['rating'].apply(lambda x: (x - min_rating) / (max_rating - min_rating))
-```
+Normalisasi rating dilakukan untuk meningkatkan performa model:
+- Mengubah skala rating dari 1-5 menjadi 0-1 dengan formula: (rating - min_rating) / (max_rating - min_rating)
+- Rating yang telah dinormalisasi membantu model konvergen lebih cepat dan stabil selama proses training
 
-Normalisasi ini penting agar membantu konvergensi model yang lebih cepat selama proses training.
+### 6. Pembagian Data Training dan Validasi
+
+Data rating dibagi menjadi data training dan validasi dengan perbandingan 80:20:
+- 80% data digunakan untuk melatih model
+- 20% data digunakan untuk validasi dan evaluasi model
+- Pembagian dilakukan secara acak untuk memastikan representasi yang baik
+
+Tahapan ini penting untuk mengevaluasi performa model pada data yang belum pernah dilihat sebelumnya.
 
 ## Modeling
 
 ### 1. Content-Based Filtering
 
-Model Content-Based Filtering diimplementasikan dengan langkah-langkah berikut:
+Model Content-Based Filtering diimplementasikan dengan pendekatan berikut:
 
-1. **TF-IDF Vectorization**: Mengubah teks konten (kombinasi penulis dan tag) menjadi vektor numerik menggunakan TF-IDF.
-   ```bash
-   tfidf = TfidfVectorizer(stop_words='english')
-   tfidf_matrix = tfidf.fit_transform(books_with_tags['content'])
-   ```
+#### TF-IDF Vectorization
+Teknik Term Frequency-Inverse Document Frequency (TF-IDF) digunakan untuk mengubah teks konten (kombinasi penulis dan tag) menjadi vektor numerik. TF-IDF memberikan bobot lebih tinggi pada kata-kata yang jarang muncul di seluruh dokumen tetapi sering muncul dalam dokumen tertentu, sehingga dapat mengidentifikasi kata kunci yang paling membedakan antar buku.
 
-2. **Cosine Similarity**: Menghitung kesamaan antara buku menggunakan metrik cosine similarity.
-   ```bash
-   cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
-   ```
+Dalam implementasi ini, saya menggunakan TfidfVectorizer dengan parameter:
+- stop_words='english' - Untuk menghilangkan kata-kata umum dalam bahasa Inggris yang tidak memberikan informasi penting
+- Ukuran matriks TF-IDF yang dihasilkan adalah 10.000 x 6.175, yang berarti ada 10.000 buku dan 6.175 fitur unik
 
-3. **Recommendation Function**: Membuat fungsi untuk memberikan rekomendasi berdasarkan kesamaan.
-   ```bash
-   def get_content_based_recommendations(title, cosine_sim=cosine_sim, df=books_with_tags, indices=indices, verbose=True):
-       # Mengambil indeks buku yang sesuai dengan judul
-       idx = indices[title]
-       
-       # Mendapatkan skor kesamaan buku dengan semua buku
-       sim_scores = list(enumerate(cosine_sim[idx]))
-       
-       # Mengurutkan buku berdasarkan skor kesamaan
-       sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-       
-       # Mendapatkan 10 buku dengan skor tertinggi (tidak termasuk buku itu sendiri)
-       sim_scores = sim_scores[1:11]
-       
-       # Mendapatkan indeks buku
-       book_indices = [i[0] for i in sim_scores]
-       
-       # Mengembalikan 10 buku teratas
-       result = df.iloc[book_indices][['title', 'authors', 'original_publication_year']]
-       
-       if verbose:
-           # Kode untuk menampilkan hasil
-           ...
-           
-       return result if not verbose else None
-   ```
+#### Cosine Similarity
+Cosine similarity digunakan untuk mengukur kesamaan antar buku. Metrik ini menghitung kosinus sudut antara dua vektor dalam ruang multi-dimensi. Semakin kecil sudut antara dua vektor (semakin besar nilai cosine similarity), semakin mirip kedua buku tersebut.
+
+Matriks cosine similarity berukuran 10.000 x 10.000, mewakili kesamaan antara setiap pasangan buku dalam dataset. Nilai ini kemudian digunakan untuk menemukan buku-buku yang paling mirip dengan buku input.
+
+#### Proses Rekomendasi
+Sistem rekomendasi bekerja dengan:
+1. Mencari indeks buku berdasarkan judul
+2. Mengambil skor kesamaan buku tersebut dengan semua buku lain dari matriks cosine similarity
+3. Mengurutkan buku berdasarkan skor kesamaan dari tertinggi ke terendah
+4. Mengambil 10 buku teratas (tidak termasuk buku itu sendiri)
 
 **Contoh Hasil Rekomendasi Content-Based Filtering**:
 
@@ -259,70 +226,57 @@ No   Judul                                              Penulis                 
 10   The History of the Hobbit, Part One: Mr. Baggin... John D. Rateliff, J.R.R. To... 2007      
 ```
 
-**Kelebihan dan Kekurangan Content-Based Filtering**:
+#### Kelebihan dan Kekurangan Content-Based Filtering
 
 **Kelebihan:**
 - Tidak memerlukan data dari pengguna lain untuk membuat rekomendasi
 - Dapat merekomendasikan buku yang baru atau belum banyak di-rating
 - Mampu menangkap preferensi spesifik pengguna
+- Transparansi dalam rekomendasi karena didasarkan pada fitur yang dapat diinterpretasi
 
 **Kekurangan:**
 - Tidak dapat menemukan preferensi baru di luar yang sudah diketahui pengguna
 - Sangat bergantung pada kualitas metadata buku
 - Terbatas pada fitur eksplisit yang tersedia
+- Dapat mengalami over-specialization (hanya merekomendasikan item yang sangat mirip)
 
 ### 2. Collaborative Filtering
 
 Model Collaborative Filtering diimplementasikan menggunakan deep learning dengan TensorFlow:
 
-1. **Model Architecture**: Menggunakan embedding layer untuk user dan book.
-   ```bash
-   class RecommenderNet(keras.Model):
-       def __init__(self, num_users, num_books, embedding_size, **kwargs):
-           super(RecommenderNet, self).__init__(**kwargs)
-           self.num_users = num_users
-           self.num_books = num_books
-           self.embedding_size = embedding_size
-           self.user_embedding = layers.Embedding(
-               num_users,
-               embedding_size,
-               embeddings_initializer='he_normal',
-               embeddings_regularizer=keras.regularizers.l2(1e-6)
-           )
-           self.user_bias = layers.Embedding(num_users, 1)
-           self.book_embedding = layers.Embedding(
-               num_books,
-               embedding_size,
-               embeddings_initializer='he_normal',
-               embeddings_regularizer=keras.regularizers.l2(1e-6)
-           )
-           self.book_bias = layers.Embedding(num_books, 1)
-       
-       def call(self, inputs):
-           user_vector = self.user_embedding(inputs[:, 0])
-           user_bias = self.user_bias(inputs[:, 0])
-           book_vector = self.book_embedding(inputs[:, 1])
-           book_bias = self.book_bias(inputs[:, 1])
-           
-           dot_user_book = tf.tensordot(user_vector, book_vector, 2)
-           
-           x = dot_user_book + user_bias + book_bias
-           
-           return tf.nn.sigmoid(x)
-   ```
+#### Arsitektur Model
+Model menggunakan Neural Collaborative Filtering dengan komponen utama:
+- Embedding layer untuk user (ukuran 50) - Mengubah user ID menjadi vektor representasi
+- Embedding layer untuk buku (ukuran 50) - Mengubah book ID menjadi vektor representasi
+- Bias terms untuk user dan buku - Menangkap preferensi dasar
+- Operasi dot product - Mengukur kesesuaian antara user dan buku
 
-2. **Training Model**: Model dilatih menggunakan data rating dari pengguna dengan learning rate 0.001 dan 100 epoch.
+Parameter penting dalam model:
+- Embedding size: 50 - Menentukan dimensi vektor latent yang merepresentasikan user dan buku
+- L2 regularization: 1e-6 - Mencegah overfitting
+- Initialization: he_normal - Inisialisasi bobot yang optimal untuk model deep learning
+- Activation function: sigmoid - Memastikan output dalam rentang 0-1 sesuai rating yang dinormalisasi
 
-3. **Recommendation Function**: Membuat fungsi untuk memberikan rekomendasi berdasarkan prediksi model.
-   ```bash
-   def get_collaborative_recommendations(user_id, top_n=10):
-       # Kode untuk mendapatkan rekomendasi
-       ...
-   ```
+#### Proses Training
+Model dilatih dengan konfigurasi:
+- Optimizer: Adam dengan learning rate 0.001
+- Loss function: BinaryCrossentropy - Sesuai untuk nilai target dalam rentang 0-1
+- Metrics: RootMeanSquaredError - Untuk evaluasi performa model
+- Batch size: 64 - Menyeimbangkan kecepatan training dan memori
+- Epochs: 100 - Jumlah iterasi pelatihan untuk konvergensi model
+
+Proses training menghasilkan penurunan RMSE dari sekitar 0,32 menjadi 0,30 pada data validasi, menunjukkan model berhasil belajar pola dalam data.
+
+#### Proses Rekomendasi
+Sistem rekomendasi bekerja dengan:
+1. Mengidentifikasi buku yang belum dibaca oleh pengguna
+2. Memprediksi rating untuk setiap buku tersebut menggunakan model
+3. Mengurutkan buku berdasarkan rating prediksi dari tertinggi ke terendah
+4. Mengambil 10 buku teratas sebagai rekomendasi
 
 **Contoh Hasil Rekomendasi Collaborative Filtering**:
 
-Berikut adalah contoh rekomendasi untuk pengguna acak:
+Berikut adalah contoh rekomendasi untuk pengguna dengan ID 40793:
 
 ```
 Rekomendasi Buku Collaborative Filtering untuk User 40793:
@@ -341,17 +295,19 @@ No   Judul                                              Penulis                 
 10   The Blank Slate: The Modern Denial of Human Nat... Steven Pinker                  0.81      
 ```
 
-**Kelebihan dan Kekurangan Collaborative Filtering**:
+#### Kelebihan dan Kekurangan Collaborative Filtering
 
 **Kelebihan:**
-- Dapat menemukan preferensi baru yang tidak terduga
-- Tidak memerlukan informasi konten yang detil
+- Dapat menemukan preferensi baru yang tidak terduga bagi pengguna
+- Tidak memerlukan informasi konten atau metadata yang detil
+- Mampu menangkap pola kompleks dan tersembunyi dalam data
 - Memberikan rekomendasi yang personal dan beragam
 
 **Kekurangan:**
 - Memerlukan data rating yang cukup (cold-start problem)
 - Kesulitan merekomendasikan buku baru yang belum memiliki banyak rating
 - Memerlukan komputasi yang lebih kompleks untuk dataset besar
+- Sulit menjelaskan alasan di balik rekomendasi (black box)
 
 ## Evaluation
 
@@ -466,7 +422,7 @@ RMSE pada data validasi: 0.2987
 RMSE pada skala rating asli (1-5): 1.1948
 ```
 
-RMSE sebesar 1.1948 pada skala 1-5 menunjukkan bahwa rata-rata prediksi model berbeda sekitar 1.2 poin dari rating aktual. Hal ini menunjukkan hasil yang cukup baik untuk sistem rekomendasi.
+RMSE sebesar 1.1948 pada skala 1-5 menunjukkan bahwa rata-rata prediksi model berbeda sekitar 1.2 poin dari rating aktual. Ini adalah hasil yang cukup baik untuk sistem rekomendasi.
 
 ![Model Metrics](https://i.ibb.co.com/hRdMM6Wy/433928666-34335261-9c36-44f2-8944-695a696182a7.png)
 
@@ -492,4 +448,4 @@ Untuk pengembangan lebih lanjut, beberapa hal yang dapat dilakukan:
 - Menambahkan fitur personalisasi berdasarkan riwayat baca pengguna secara real-time
 - Memperbaiki masalah cold start dengan menambahkan rekomendasi buku populer untuk pengguna baru
 
-Secara keseluruhan, sistem rekomendasi buku yang dibangun dapat membantu pembaca menemukan buku yang sesuai dengan minat mereka, meningkatkan pengalaman pengguna, dan potensial meningkatkan penjualan bagi platform buku.
+jadi secara keseluruhan, sistem rekomendasi buku yang dibangun dapat membantu pembaca menemukan buku yang sesuai dengan minat mereka, meningkatkan pengalaman pengguna, dan potensial meningkatkan penjualan bagi platform buku.
