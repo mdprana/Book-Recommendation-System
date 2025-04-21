@@ -89,6 +89,13 @@ Data columns (total 23 columns):
  22  small_image_url            10000 non-null  object 
 ```
 
+Dari data di atas, terdapat beberapa missing value pada beberapa kolom:
+- isbn: 700 missing value
+- isbn13: 585 missing value
+- original_publication_year: 21 missing value
+- original_title: 585 missing value
+- language_code: 1084 missing value
+
 **3. Distribusi Rating**
 
 Analisis distribusi rating menunjukkan bahwa mayoritas rating berada pada nilai 4 dan 5, yang menunjukkan kecenderungan pengguna untuk memberikan rating tinggi.
@@ -121,21 +128,29 @@ max           5.000000
 
 Berikut adalah visualisasi distribusi buku berdasarkan tahun publikasi:
 
-![Distribusi Buku Berdasarkan Tahun Publikasi](https://i.ibb.co.com/33Y7hMd/433922366-000c46f7-eb1a-4b50-924e-25b369159956.png)
+![Distribusi Buku Berdasarkan Tahun Publikasi](https://i.ibb.co/33Y7hMd/433922366-000c46f7-eb1a-4b50-924e-25b369159956.png)
 
 ## Data Preparation
 
 Beberapa tahapan persiapan data yang dilakukan pada proyek ini:
 
-### 1. Pembersihan Data
+### 1. Handling Missing Value
 
-Langkah pertama adalah mengatasi missing value pada dataset. Terdapat beberapa missing value pada kolom tertentu di books.csv:
-- Menghapus buku dengan judul atau penulis yang kosong karena kedua informasi ini sangat penting untuk sistem rekomendasi.
-- Membersihkan data rating untuk memastikan hanya menggunakan rating untuk buku yang valid.
+Tahap pertama adalah menangani missing value pada dataset:
+
+- **Dataset Buku**:
+  - Missing value pada kolom isbn, isbn13, original_title, dan language_code dibiarkan karena tidak digunakan dalam model
+  - Namun, buku dengan judul atau penulis yang kosong akan dihapus karena kedua informasi ini sangat penting untuk sistem rekomendasi
+  - Hasil: Seluruh 10.000 data buku tetap dipertahankan karena tidak ada missing value pada kolom title dan authors
+
+- **Dataset Rating**:
+  - Tidak ada missing value pada dataset rating
 
 Tahapan ini penting untuk memastikan kualitas data yang akan digunakan dalam model.
 
-### 2. Pemilihan Fitur
+### 2. Content-Based Filtering Preparation
+
+#### 2.1 Pemilihan Fitur 
 
 Untuk model Content-Based Filtering, dipilih fitur-fitur yang relevan seperti:
 - book_id: ID unik buku
@@ -146,9 +161,9 @@ Untuk model Content-Based Filtering, dipilih fitur-fitur yang relevan seperti:
 
 Pemilihan fitur ini penting karena fitur-fitur ini akan digunakan sebagai dasar untuk menemukan kesamaan antar buku.
 
-### 3. Penggabungan Data
+#### 2.2 Penggabungan Data dengan Tag
 
-Menggabungkan data buku dengan tag untuk membuat representasi konten yang lebih kaya. Tahapan ini meliputi:
+Menggabungkan data buku dengan tag untuk membuat representasi konten yang lebih kaya:
 - Menggabungkan data buku dengan data tag melalui goodreads_book_id
 - Mengonversi tag_id menjadi nama tag menggunakan dictionary
 - Menggabungkan semua tag menjadi satu string untuk setiap buku
@@ -156,26 +171,47 @@ Menggabungkan data buku dengan tag untuk membuat representasi konten yang lebih 
 
 Penggabungan ini penting untuk memberikan konteks yang lebih kaya tentang setiap buku, yang akan meningkatkan kualitas rekomendasi berbasis konten.
 
-### 4. Encoding User dan Book ID
+#### 2.3 Ekstraksi Fitur TF-IDF
 
-Proses encoding perlu dilakukan agar data dapat diproses oleh model deep learning:
-- Membuat dictionary untuk mengonversi user_id dan book_id menjadi indeks berurutan
+TF-IDF (Term Frequency-Inverse Document Frequency) digunakan untuk mengubah teks konten (kombinasi penulis dan tag) menjadi vektor numerik:
+- Metode ini memberikan bobot lebih tinggi pada kata-kata yang jarang muncul di seluruh dokumen tetapi sering muncul dalam dokumen tertentu
+- Menggunakan TfidfVectorizer dengan parameter stop_words='english' untuk menghilangkan kata-kata umum
+- Menghasilkan matriks berukuran 10.000 x 6.175 (10.000 buku dengan 6.175 fitur unik)
+
+Ekstraksi fitur ini mengubah data teks menjadi representasi vektor yang dapat digunakan untuk menghitung kesamaan antar buku.
+
+### 3. Collaborative Filtering Preparation
+
+#### 3.1 Seleksi Data Rating
+
+Data rating diseleksi untuk mendapatkan dataset yang berkualitas baik:
+- Hanya menggunakan rating untuk buku yang valid (ada dalam books_clean)
+- Memilih pengguna yang memberikan rating untuk minimal 5 buku
+- Memilih buku yang memiliki minimal 5 rating
+- Hasil: 36.411 data rating dengan 4.634 pengguna unik dan 783 buku unik
+
+Seleksi ini membantu mengurangi sparsity dalam data rating dan mengatasi cold-start problem.
+
+#### 3.2 Encoding User dan Book ID
+
+Proses encoding dilakukan agar data dapat diproses oleh model deep learning:
+- Membuat dictionary untuk mengonversi user_id dan book_id menjadi indeks berurutan (0 hingga n-1)
 - Membuat dictionary untuk konversi balik dari indeks ke ID asli
 - Memetakan user_id dan book_id ke indeks baru di dataframe
 
 Encoding ini diperlukan karena model deep learning memerlukan indeks numerik berurutan sebagai input.
 
-### 5. Normalisasi Rating
+#### 3.3 Normalisasi Rating
 
 Normalisasi rating dilakukan untuk meningkatkan performa model:
 - Mengubah skala rating dari 1-5 menjadi 0-1 dengan formula: (rating - min_rating) / (max_rating - min_rating)
 - Rating yang telah dinormalisasi membantu model konvergen lebih cepat dan stabil selama proses training
 
-### 6. Pembagian Data Training dan Validasi
+#### 3.4 Pembagian Data Training dan Validasi
 
 Data rating dibagi menjadi data training dan validasi dengan perbandingan 80:20:
-- 80% data digunakan untuk melatih model
-- 20% data digunakan untuk validasi dan evaluasi model
+- 80% data (29.129 rating) digunakan untuk melatih model
+- 20% data (7.282 rating) digunakan untuk validasi dan evaluasi model
 - Pembagian dilakukan secara acak untuk memastikan representasi yang baik
 
 Tahapan ini penting untuk mengevaluasi performa model pada data yang belum pernah dilihat sebelumnya.
@@ -186,19 +222,15 @@ Tahapan ini penting untuk mengevaluasi performa model pada data yang belum perna
 
 Model Content-Based Filtering diimplementasikan dengan pendekatan berikut:
 
-#### TF-IDF Vectorization
-Teknik Term Frequency-Inverse Document Frequency (TF-IDF) digunakan untuk mengubah teks konten (kombinasi penulis dan tag) menjadi vektor numerik. TF-IDF memberikan bobot lebih tinggi pada kata-kata yang jarang muncul di seluruh dokumen tetapi sering muncul dalam dokumen tertentu, sehingga dapat mengidentifikasi kata kunci yang paling membedakan antar buku.
+#### Proses Perhitungan Similarity
 
-Dalam implementasi ini, saya menggunakan TfidfVectorizer dengan parameter:
-- stop_words='english' - Untuk menghilangkan kata-kata umum dalam bahasa Inggris yang tidak memberikan informasi penting
-- Ukuran matriks TF-IDF yang dihasilkan adalah 10.000 x 6.175, yang berarti ada 10.000 buku dan 6.175 fitur unik
-
-#### Cosine Similarity
-Cosine similarity digunakan untuk mengukur kesamaan antar buku. Metrik ini menghitung kosinus sudut antara dua vektor dalam ruang multi-dimensi. Semakin kecil sudut antara dua vektor (semakin besar nilai cosine similarity), semakin mirip kedua buku tersebut.
-
-Matriks cosine similarity berukuran 10.000 x 10.000, mewakili kesamaan antara setiap pasangan buku dalam dataset. Nilai ini kemudian digunakan untuk menemukan buku-buku yang paling mirip dengan buku input.
+Setelah tahap ekstraksi fitur TF-IDF, cosine similarity digunakan untuk mengukur kesamaan antar buku:
+- Cosine similarity mengukur kosinus sudut antara dua vektor dalam ruang multi-dimensi
+- Semakin kecil sudut antara dua vektor (semakin besar nilai cosine similarity), semakin mirip kedua buku tersebut
+- Matriks cosine similarity berukuran 10.000 x 10.000, mewakili kesamaan antara setiap pasangan buku
 
 #### Proses Rekomendasi
+
 Sistem rekomendasi bekerja dengan:
 1. Mencari indeks buku berdasarkan judul
 2. Mengambil skor kesamaan buku tersebut dengan semua buku lain dari matriks cosine similarity
@@ -245,6 +277,7 @@ No   Judul                                              Penulis                 
 Model Collaborative Filtering diimplementasikan menggunakan deep learning dengan TensorFlow:
 
 #### Arsitektur Model
+
 Model menggunakan Neural Collaborative Filtering dengan komponen utama:
 - Embedding layer untuk user (ukuran 50) - Mengubah user ID menjadi vektor representasi
 - Embedding layer untuk buku (ukuran 50) - Mengubah book ID menjadi vektor representasi
@@ -258,6 +291,7 @@ Parameter penting dalam model:
 - Activation function: sigmoid - Memastikan output dalam rentang 0-1 sesuai rating yang dinormalisasi
 
 #### Proses Training
+
 Model dilatih dengan konfigurasi:
 - Optimizer: Adam dengan learning rate 0.001
 - Loss function: BinaryCrossentropy - Sesuai untuk nilai target dalam rentang 0-1
@@ -268,6 +302,7 @@ Model dilatih dengan konfigurasi:
 Proses training menghasilkan penurunan RMSE dari sekitar 0,32 menjadi 0,30 pada data validasi, menunjukkan model berhasil belajar pola dalam data.
 
 #### Proses Rekomendasi
+
 Sistem rekomendasi bekerja dengan:
 1. Mengidentifikasi buku yang belum dibaca oleh pengguna
 2. Memprediksi rating untuk setiap buku tersebut menggunakan model
@@ -402,7 +437,26 @@ No   Judul                                              Penulis                 
 
 Presisi: 9/10 (90%) - 9 rekomendasi berasal dari penulis yang sama (Maya Banks), tetapi 1 rekomendasi memiliki penulis yang berbeda namun nama belakang sama (Anna Banks).
 
-Rata-rata presisi dari 4 contoh di atas adalah (100% + 100% + 60% + 90%) / 4 = 87.5%, yang menunjukkan bahwa model Content-Based Filtering cukup akurat dalam memberikan rekomendasi berdasarkan penulis yang sama.
+```
+Rekomendasi Buku Berdasarkan: The Way the Crow Flies
+====================================================================================================
+No   Judul                                              Penulis                        Tahun     
+----------------------------------------------------------------------------------------------------
+1    The Way the Crow Flies                             Ann-Marie MacDonald            2003      
+2    Cape Fear                                          John D. MacDonald              1958      
+3    Holy Cow: An Indian Adventure                      Sarah Macdonald                2002      
+4    H is for Hawk                                      Helen Macdonald                2015      
+5    All Souls: A Family Story from Southie             Michael Patrick MacDonald      1999      
+6    Night Shift                                        Stephen King, John D. MacDo... 1978      
+7    Kristy's Great Idea (The Baby-Sitters Club, #1)    Ann M. Martin                  1986      
+8    A Dog's Life: The Autobiography of a Stray         Ann M. Martin                  2005      
+9    A Corner of the Universe                           Ann M. Martin                  2002      
+10   Rain Reign                                         Ann M. Martin                  2014      
+```
+
+Presisi: 5/10 (50%) - 5 rekomendasi memiliki penulis dengan nama belakang "MacDonald" (atau varian ejaan), dan 4 rekomendasi berasal dari penulis "Ann M. Martin" yang memiliki nama depan mirip dengan "Ann-Marie" dari buku input.
+
+Rata-rata presisi dari 5 contoh di atas adalah (100% + 100% + 60% + 90% + 50%) / 5 = 80%, yang menunjukkan bahwa model Content-Based Filtering cukup akurat dalam memberikan rekomendasi berdasarkan kesamaan penulis.
 
 ### 2. Evaluasi Collaborative Filtering
 
@@ -424,13 +478,13 @@ RMSE pada skala rating asli (1-5): 1.1948
 
 RMSE sebesar 1.1948 pada skala 1-5 menunjukkan bahwa rata-rata prediksi model berbeda sekitar 1.2 poin dari rating aktual. Ini adalah hasil yang cukup baik untuk sistem rekomendasi.
 
-![Model Metrics](https://i.ibb.co.com/hRdMM6Wy/433928666-34335261-9c36-44f2-8944-695a696182a7.png)
+![Model Metrics](https://i.ibb.co/hRdMM6Wy/433928666-34335261-9c36-44f2-8944-695a696182a7.png)
 
 ### Perbandingan Metrik
 
 Meskipun kedua model menggunakan metrik evaluasi yang berbeda, kita dapat membandingkan kinerja relatif mereka:
 
-1. **Content-Based Filtering** dengan presisi tinggi menunjukkan bahwa model ini cukup baik dalam menemukan buku yang serupa berdasarkan konten.
+1. **Content-Based Filtering** dengan presisi 80% menunjukkan bahwa model ini cukup baik dalam menemukan buku yang serupa berdasarkan konten.
 
 2. **Collaborative Filtering** dengan RMSE 1.1948 (pada skala 1-5) menunjukkan bahwa model ini dapat memprediksi rating dengan selisih kurang dari 1.2 poin dari rating aktual, yang cukup baik untuk sistem rekomendasi.
 
@@ -440,7 +494,7 @@ Kedua model memiliki kelebihan dan kekurangan masing-masing, dan dalam implement
 
 Proyek ini telah berhasil mengimplementasikan dua pendekatan sistem rekomendasi buku: Content-Based Filtering dan Collaborative Filtering. Kedua pendekatan menunjukkan kinerja yang baik dalam memberikan rekomendasi buku yang relevan bagi pengguna.
 
-Content-Based Filtering berhasil memberikan rekomendasi berdasarkan kesamaan konten (penulis, tag/genre), sementara Collaborative Filtering dapat memprediksi rating dengan RMSE 1.1948 pada skala 1-5.
+Content-Based Filtering berhasil memberikan rekomendasi berdasarkan kesamaan konten (penulis, tag/genre) dengan presisi rata-rata 80%, sementara Collaborative Filtering dapat memprediksi rating dengan RMSE 1.1948 pada skala 1-5.
 
 Untuk pengembangan lebih lanjut, beberapa hal yang dapat dilakukan:
 - Menggunakan dataset yang lebih besar untuk meningkatkan akurasi model
@@ -448,4 +502,4 @@ Untuk pengembangan lebih lanjut, beberapa hal yang dapat dilakukan:
 - Menambahkan fitur personalisasi berdasarkan riwayat baca pengguna secara real-time
 - Memperbaiki masalah cold start dengan menambahkan rekomendasi buku populer untuk pengguna baru
 
-jadi secara keseluruhan, sistem rekomendasi buku yang dibangun dapat membantu pembaca menemukan buku yang sesuai dengan minat mereka, meningkatkan pengalaman pengguna, dan potensial meningkatkan penjualan bagi platform buku.
+Secara keseluruhan, sistem rekomendasi buku yang dibangun dapat membantu pembaca menemukan buku yang sesuai dengan minat mereka, meningkatkan pengalaman pengguna, dan potensial meningkatkan penjualan bagi platform buku.
