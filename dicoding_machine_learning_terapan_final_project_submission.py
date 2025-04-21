@@ -307,7 +307,7 @@ books_with_tags = books_with_tags.fillna('')
 print("\nSampel data buku dengan tag:")
 print(books_with_tags.head())
 
-"""### 4. Menyiapkan Data untuk Collaborative Filtering"""
+"""### 4. Seleksi Data Rating"""
 
 # Kita bisa memilih hanya pengguna yang memberikan rating untuk minimal 5 buku
 user_counts = ratings_clean['user_id'].value_counts()
